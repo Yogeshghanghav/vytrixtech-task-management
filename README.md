@@ -4,9 +4,9 @@ A full-stack team project and task management app. Managers create projects and 
 
 | | |
 |---|---|
-| **Live app** | `<add your Vercel URL>` |
-| **Live API** | `<add your Render URL>/api/health` |
-| **Demo video** | `<add your video link>` |
+| **Live app** | `https://vytrixtech-task-management.vercel.app` |
+| **Live API** | `ttps://vytrixtech-task-management.onrender.com/api/health` |
+| **Demo video** | `....` |
 | **API docs** | [Postman collection](postman/TeamFlow.postman_collection.json) |
 | **Database schema** | [ER diagram](docs/er-diagram.png) |
 
@@ -18,9 +18,9 @@ Replace these with the accounts you created.
 
 | Role | Email | Password |
 |---|---|---|
-| Admin | `<email>` | `<password>` |
-| Project Manager | `<email>` | `<password>` |
-| Developer | `<email>` | `<password>` |
+| Admin | `admin@teamflow.local` | `Admin12345` |
+| Project Manager | `manager@example.com` | `Manager123` |
+| Developer | `developer@example.com` | `Dev12345` |
 
 ## Features
 
@@ -239,4 +239,4 @@ Design notes: tasks, comments and logs reference their parents instead of being 
 
 ## Author
 
-`<your name>` | `<your email or LinkedIn>`
+`yogesh` 
