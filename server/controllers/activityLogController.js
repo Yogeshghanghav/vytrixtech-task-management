@@ -9,8 +9,10 @@ const getActivityLogs = async (req, res) => {
     let filter = {}
 
     if (role === 'admin') {
+      // Admin can view all activity logs.
       filter = {}
     } else if (role === 'project manager') {
+      // Project managers can view activity for their own projects.
       const projects = await Project.find({
         $or: [
           { createdBy: req.user._id },

@@ -1,10 +1,10 @@
+
 import { useState } from 'react'
 import api from '../api'
 
 function Login({ onLogin, onShowRegister }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -14,123 +14,104 @@ function Login({ onLogin, onShowRegister }) {
     setLoading(true)
 
     try {
-      const { data } = await api.post('/auth/login', { email, password })
+      const response = await api.post('/auth/login', {
+        email,
+        password,
+      })
 
-      localStorage.setItem('token', data.token)
-      localStorage.setItem('user', JSON.stringify(data.user))
+      const { token, user } = response.data
 
-      onLogin(data.user)
+      localStorage.setItem('token', token)
+      localStorage.setItem('user', JSON.stringify(user))
+
+      onLogin(user)
     } catch (err) {
-      setError(err.response?.data?.message || 'Could not sign in. Please try again.')
+      setError(
+        err.response?.data?.message ||
+          'Login failed. Please check your details.'
+      )
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <main
-      className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-10"
-      style={{
-        backgroundImage: 'radial-gradient(#cbd5e1 1px, transparent 1px)',
-        backgroundSize: '22px 22px',
-      }}
-    >
-      <div className="w-full max-w-md">
-        <div className="mb-6 flex items-center justify-center gap-2.5">
-          <svg viewBox="0 0 24 24" className="h-7 w-7" aria-hidden="true">
-            <rect x="2" y="4" width="20" height="4" rx="1" fill="#0f766e" />
-            <rect x="2" y="10" width="14" height="4" rx="1" fill="#2dd4bf" />
-            <rect x="2" y="16" width="8" height="4" rx="1" fill="#99f6e4" />
-          </svg>
-          <span className="text-xl font-bold tracking-tight text-slate-900">TeamFlow</span>
-        </div>
-
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex h-1" aria-hidden="true">
-            <span className="flex-1 bg-slate-400" />
-            <span className="flex-1 bg-amber-500" />
-            <span className="flex-1 bg-emerald-600" />
+    <main className="flex min-h-screen items-center justify-center bg-[#f7f7fb] px-4 py-10">
+      <section className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 shadow-xl shadow-indigo-100/50">
+        <div className="mb-8 text-center">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-600 text-2xl font-bold text-white">
+            T
           </div>
 
-          <div className="px-7 pb-8 pt-7 sm:px-9">
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Welcome back</h1>
-            <p className="mt-1.5 text-sm text-slate-600">
-              Sign in to see your projects and tasks.
+          <h1 className="mt-5 text-2xl font-bold tracking-tight text-slate-900">
+            Welcome to TeamFlow
+          </h1>
+
+          <p className="mt-2 text-sm text-slate-500">
+            Sign in to manage your projects and tasks.
+          </p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div>
+            <label className="mb-2 block text-sm font-medium text-slate-700">
+              Email address
+            </label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              autoComplete="email"
+              required
+              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50"
+            />
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-medium text-slate-700">
+              Password
+            </label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Enter your password"
+              autoComplete="current-password"
+              required
+              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50"
+            />
+          </div>
+
+          {error && (
+            <p
+              role="alert"
+              className="rounded-xl bg-rose-50 p-3 text-sm text-rose-600"
+            >
+              {error}
             </p>
+          )}
 
-            <form onSubmit={handleSubmit} className="mt-7 space-y-5">
-              <div>
-                <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-slate-800">
-                  Email
-                </label>
-                <input
-                  id="email"
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@company.com"
-                  autoComplete="email"
-                  className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-600/20"
-                />
-              </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full rounded-xl bg-indigo-600 px-4 py-3 font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {loading ? 'Signing in...' : 'Sign in'}
+          </button>
+        </form>
 
-              <div>
-                <div className="mb-1.5 flex items-center justify-between">
-                  <label htmlFor="password" className="text-sm font-medium text-slate-800">
-                    Password
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((v) => !v)}
-                    aria-pressed={showPassword}
-                    className="text-xs font-semibold text-teal-700 hover:text-teal-800"
-                  >
-                    {showPassword ? 'Hide' : 'Show'}
-                  </button>
-                </div>
-                <input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="current-password"
-                  className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3.5 text-sm text-slate-900 focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-600/20"
-                />
-              </div>
-
-              {error && (
-                <p
-                  role="alert"
-                  className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700"
-                >
-                  {error}
-                </p>
-              )}
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="h-11 w-full rounded-lg bg-teal-700 text-sm font-semibold text-white transition-colors hover:bg-teal-800 focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2 disabled:opacity-60"
-              >
-                {loading ? 'Signing in...' : 'Sign in'}
-              </button>
-            </form>
-          </div>
-        </div>
-
-        <p className="mt-6 text-center text-sm text-slate-600">
-          Don't have an account?{' '}
+        <p className="mt-6 text-center text-sm text-slate-500">
+          New to TeamFlow?{' '}
           <button
             type="button"
             onClick={onShowRegister}
-            className="font-semibold text-teal-700 hover:text-teal-800"
+            className="font-semibold text-indigo-600 hover:text-indigo-800"
           >
-            Create one
+            Create an account
           </button>
         </p>
-      </div>
+      </section>
     </main>
   )
 }

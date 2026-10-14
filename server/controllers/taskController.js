@@ -18,6 +18,8 @@ const isProjectMember = (project, userId) => {
     project.members.some((member) => member.toString() === id)
   )
 }
+
+// Create a task
 const createTask = async (req, res) => {
   try {
     const {
@@ -87,9 +89,9 @@ const createTask = async (req, res) => {
     const io = req.app.get('io')
 
     if (io) {
-      io.to(`project:${project._id}`)
-        .to(`user:${developer._id}`)
-        .emit('task-created', { task: populatedTask })
+      io.to(`project:${project._id}`).emit('task-created', {
+        task: populatedTask,
+      })
     }
 
     return res.status(201).json({
@@ -106,6 +108,8 @@ const createTask = async (req, res) => {
     })
   }
 }
+
+// Get tasks visible to the current user
 const getTasks = async (req, res) => {
   try {
     let filter = {}

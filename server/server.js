@@ -19,7 +19,6 @@ const taskRoutes = require('./routes/taskRoutes')
 const commentRoutes = require('./routes/commentRoutes')
 const dashboardRoutes = require('./routes/dashboardRoutes')
 const activityLogRoutes = require('./routes/activityLogRoutes')
-const userRoutes = require('./routes/userRoutes')
 
 const app = express()
 const server = http.createServer(app)
@@ -66,9 +65,6 @@ io.use(async (socket, next) => {
 
 io.on('connection', (socket) => {
   console.log(`Authenticated socket connected: ${socket.user._id}`)
-
-  // Personal room, so the server can reach this user even before they have joined a project room.
-  socket.join(`user:${socket.user._id}`)
 
   socket.on('join-project', async (projectId) => {
     try {
@@ -143,7 +139,6 @@ app.use('/api/tasks', taskRoutes)
 app.use('/api/comments', commentRoutes)
 app.use('/api/dashboard', dashboardRoutes)
 app.use('/api/activity-logs', activityLogRoutes)
-app.use('/api/users', userRoutes)
 
 app.get('/api/debug', (req, res) => {
   res.status(200).json({

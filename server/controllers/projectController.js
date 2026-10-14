@@ -44,6 +44,8 @@ const canViewProject = async (project, user) => {
 
   return false
 }
+
+// Create project
 exports.createProject = async (req, res) => {
   try {
     const { name, description, status, dueDate, members } = req.body
@@ -88,6 +90,8 @@ exports.createProject = async (req, res) => {
     })
   }
 }
+
+// Get projects visible to the current user
 exports.getProjects = async (req, res) => {
   try {
     let projects
@@ -133,6 +137,8 @@ exports.getProjects = async (req, res) => {
     })
   }
 }
+
+// Get single project
 exports.getProjectById = async (req, res) => {
   try {
     const project = await Project.findById(req.params.id)
@@ -163,6 +169,7 @@ exports.getProjectById = async (req, res) => {
   }
 }
 
+// Update project
 exports.updateProject = async (req, res) => {
   try {
     const project = await Project.findById(req.params.id)

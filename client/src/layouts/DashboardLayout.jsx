@@ -1,24 +1,17 @@
-import Sidebar, { MobileBar, MobileTabs } from '../components/Sidebar'
 
-function DashboardLayout({ activeNav, setActiveNav, user, openCount, onLogout, children }) {
+import Sidebar from '../components/Sidebar'
+
+function DashboardLayout({ activeNav, setActiveNav, children }) {
   return (
-    <div className="min-h-screen md:flex">
+    <div className="flex min-h-screen flex-col bg-[#f7f7fb] text-slate-800 md:h-screen md:min-h-0 md:flex-row md:overflow-hidden">
       <Sidebar
         activeNav={activeNav}
         setActiveNav={setActiveNav}
-        user={user}
-        openCount={openCount}
-        onLogout={onLogout}
       />
 
-      <div className="min-w-0 flex-1">
-        <MobileBar onLogout={onLogout} />
-        <main className="mx-auto max-w-6xl px-4 pb-24 pt-6 md:px-10 md:pb-12 md:pt-10">
-          {children}
-        </main>
-      </div>
-
-      <MobileTabs activeNav={activeNav} setActiveNav={setActiveNav} />
+      <main className="min-w-0 flex-1 px-5 py-7 md:overflow-y-auto md:px-10 md:py-10 lg:px-12">
+        {children}
+      </main>
     </div>
   )
 }

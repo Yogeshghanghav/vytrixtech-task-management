@@ -1,15 +1,40 @@
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import api from '../api'
 import socket from '../socket'
-import Avatar from './Avatar'
-import Panel from './Panel'
-import { EmptyState, Notice } from './States'
-import { dueLabel, formatDateTime, statusLabel } from '../utils/format'
 
 const statusOptions = ['Todo', 'In Progress', 'Completed']
 
-function MyTasksView({ tasks, onTaskUpdated }) {
+function formatDate(dateValue) {
+  if (!dateValue) return 'No due date'
+
+  const date = new Date(dateValue)
+
+  if (Number.isNaN(date.getTime())) return 'No due date'
+
+  return date.toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  })
+}
+
+function formatDateTime(dateValue) {
+  if (!dateValue) return ''
+
+  const date = new Date(dateValue)
+
+  if (Number.isNaN(date.getTime())) return ''
+
+  return date.toLocaleString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function MyTasksView({ tasks, onTaskUpdated, onTaskCreated }) {
   const [search, setSearch] = useState('')
   const [priority, setPriority] = useState('All')
   const [status, setStatus] = useState('All')
@@ -23,9 +48,67 @@ function MyTasksView({ tasks, onTaskUpdated }) {
   const [commentText, setCommentText] = useState('')
   const [sendingComment, setSendingComment] = useState(false)
 
-  // Task updates and new tasks are handled for the whole dashboard (useTaskSocket).
-  // Comments are local to this screen, so this is the only listener it needs.
+  // Keep the latest task IDs and callbacks without re-registering socket listeners.
+  const projectIdsRef = useRef([])
+  const callbacksRef = useRef({})
+  const openCommentsTaskRef = useRef(null)
+
   useEffect(() => {
+    projectIdsRef.current = [
+      ...new Set(
+        tasks
+          .map((task) => {
+            return typeof task.project === 'object'
+              ? task.project?._id
+              : task.project
+          })
+          .filter(Boolean)
+          .map(String)
+      ),
+    ]
+
+    if (socket.connected) {
+      projectIdsRef.current.forEach((projectId) => {
+        socket.emit('join-project', projectId)
+      })
+    }
+  }, [tasks])
+
+  useEffect(() => {
+    callbacksRef.current = {
+      onTaskUpdated,
+      onTaskCreated,
+    }
+  }, [onTaskUpdated, onTaskCreated])
+
+  useEffect(() => {
+    openCommentsTaskRef.current = openCommentsTask
+  }, [openCommentsTask])
+
+  // Connect once, join authorized project rooms, and listen for live updates.
+  useEffect(() => {
+    const token = localStorage.getItem('token')
+
+    if (!token) return
+
+    function joinProjectRooms() {
+      projectIdsRef.current.forEach((projectId) => {
+        socket.emit('join-project', projectId)
+      })
+    }
+
+    function handleTaskUpdated(payload) {
+      if (payload?.task?._id) {
+        callbacksRef.current.onTaskUpdated?.(payload.task)
+      }
+    }
+
+    function handleTaskCreated(payload) {
+      if (payload?.task?._id) {
+        callbacksRef.current.onTaskCreated?.(payload.task)
+      }
+    }
+
     function handleCommentCreated(payload) {
       const taskId = payload?.taskId
       const newComment = payload?.comment
@@ -52,9 +135,23 @@ function MyTasksView({ tasks, onTaskUpdated }) {
       })
     }
 
+    socket.auth = { token }
+
+    socket.on('connect', joinProjectRooms)
+    socket.on('task-updated', handleTaskUpdated)
+    socket.on('task-created', handleTaskCreated)
     socket.on('comment-created', handleCommentCreated)
 
+    if (!socket.connected) {
+      socket.connect()
+    } else {
+      joinProjectRooms()
+    }
+
     return () => {
+      socket.off('connect', joinProjectRooms)
+      socket.off('task-updated', handleTaskUpdated)
+      socket.off('task-created', handleTaskCreated)
       socket.off('comment-created', handleCommentCreated)
     }
   }, [])
@@ -89,7 +186,7 @@ function MyTasksView({ tasks, onTaskUpdated }) {
       const updatedTask = response.data?.data
 
       if (updatedTask) {
-        onTaskUpdated?.(updatedTask)
+        callbacksRef.current.onTaskUpdated?.(updatedTask)
       }
     } catch (err) {
       setError(
@@ -186,225 +283,274 @@ function MyTasksView({ tasks, onTaskUpdated }) {
     }
   }
 
-  const priorityDot = {
-    High: 'bg-late',
-    Medium: 'bg-doing',
-    Low: 'bg-ink-faint',
-  }
-
-  const fieldClass =
-    'rounded-md border border-line bg-paper px-3 py-2 text-sm'
-
   return (
-    <div className="mt-6 space-y-4">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_180px_180px]">
+    <section className="mt-8">
+      <div className="mb-6">
+        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-indigo-500">
+          Task management
+        </p>
+        <h2 className="mt-2 text-2xl font-bold tracking-tight">
+          My tasks
+        </h2>
+        <p className="mt-1 text-sm text-slate-500">
+          Track assignments, update progress, and discuss your work.
+        </p>
+      </div>
+
+      <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search tasks or projects"
-          aria-label="Search tasks"
-          className={fieldClass}
+          placeholder="Search tasks or projects..."
+          className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-indigo-400"
         />
 
         <select
           value={priority}
           onChange={(event) => setPriority(event.target.value)}
-          aria-label="Filter by priority"
-          className={fieldClass}
+          className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-indigo-400"
         >
           <option value="All">All priorities</option>
-          <option value="High">High</option>
-          <option value="Medium">Medium</option>
-          <option value="Low">Low</option>
+          <option value="High">High priority</option>
+          <option value="Medium">Medium priority</option>
+          <option value="Low">Low priority</option>
         </select>
 
         <select
           value={status}
           onChange={(event) => setStatus(event.target.value)}
-          aria-label="Filter by status"
-          className={fieldClass}
+          className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-indigo-400"
         >
           <option value="All">All statuses</option>
           {statusOptions.map((item) => (
             <option key={item} value={item}>
-              {statusLabel(item)}
+              {item === 'Todo' ? 'To Do' : item}
             </option>
           ))}
         </select>
       </div>
 
-      {error && <Notice>{error}</Notice>}
+      {error && (
+        <div
+          role="alert"
+          className="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700"
+        >
+          {error}
+        </div>
+      )}
 
-      <Panel
-        title={`${filteredTasks.length} ${filteredTasks.length === 1 ? 'task' : 'tasks'}`}
-      >
-        {filteredTasks.length === 0 ? (
-          <EmptyState title="No tasks found">
-            Change the filters, or check back when work is assigned to you.
-          </EmptyState>
-        ) : (
-          <ul className="divide-y divide-line">
-            {filteredTasks.map((task) => {
-              const taskId = task._id || task.id
-              const taskComments = commentsByTask[taskId] || []
-              const commentsOpen = openCommentsTask === taskId
-              const commentsLoaded = Object.prototype.hasOwnProperty.call(
-                commentsByTask,
-                taskId
-              )
-              const due = dueLabel(task)
+      {filteredTasks.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
+          <p className="font-semibold text-slate-800">No tasks found</p>
+          <p className="mt-2 text-sm text-slate-500">
+            Try changing your search or filters, or check back when tasks are assigned.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {filteredTasks.map((task) => {
+            const taskId = task._id || task.id
+            const taskComments = commentsByTask[taskId] || []
+            const commentsOpen = openCommentsTask === taskId
 
-              return (
-                <li key={taskId} className="px-5 py-4">
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="min-w-0 flex-1">
-                      <h3 className="font-medium">{task.title}</h3>
-                      <p className="mt-0.5 text-sm text-ink-soft">
-                        {task.project?.name || 'Unknown project'}
+            return (
+              <article
+                key={taskId}
+                className="rounded-2xl border border-slate-200 bg-white p-5 transition hover:border-indigo-200"
+              >
+                <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-semibold text-slate-800">
+                      {task.title}
+                    </h3>
+
+                    <p className="mt-1 text-sm text-slate-500">
+                      Project: {task.project?.name || 'Unknown project'}
+                    </p>
+
+                    {task.description && (
+                      <p className="mt-2 text-sm leading-6 text-slate-600">
+                        {task.description}
                       </p>
+                    )}
 
-                      {task.description && (
-                        <p className="mt-2 max-w-prose text-sm leading-6 text-ink-soft">
-                          {task.description}
-                        </p>
-                      )}
-
-                      <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
-                        <span className="flex items-center gap-2">
-                          <span
-                            className={`h-2 w-2 rounded-full ${
-                              priorityDot[task.priority] || 'bg-ink-faint'
-                            }`}
-                          />
-                          {task.priority || 'Medium'} priority
-                        </span>
-
-                        <span className={due.late ? 'font-semibold text-late' : 'text-ink-soft'}>
-                          {due.late ? due.text : `Due ${due.text.toLowerCase()}`}
-                        </span>
-
-                        {task.assignedTo?.name && (
-                          <span className="flex items-center gap-2 text-ink-soft">
-                            <Avatar name={task.assignedTo.name} size="sm" />
-                            {task.assignedTo.name}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="w-full sm:w-40">
-                      <label
-                        htmlFor={`status-${taskId}`}
-                        className="mb-1 block text-xs text-ink-soft"
+                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+                      <span
+                        className={`rounded-full px-3 py-1 font-semibold ${
+                          task.priority === 'High'
+                            ? 'bg-rose-50 text-rose-600'
+                            : task.priority === 'Medium'
+                              ? 'bg-amber-50 text-amber-700'
+                              : 'bg-emerald-50 text-emerald-700'
+                        }`}
                       >
-                        Status
-                      </label>
+                        {task.priority || 'Medium'} priority
+                      </span>
 
-                      <select
-                        id={`status-${taskId}`}
-                        value={task.status}
-                        disabled={updatingId === taskId}
-                        onChange={(event) =>
-                          handleStatusChange(taskId, event.target.value)
-                        }
-                        className={`${fieldClass} w-full disabled:opacity-60`}
-                      >
-                        {statusOptions.map((item) => (
-                          <option key={item} value={item}>
-                            {statusLabel(item)}
-                          </option>
-                        ))}
-                      </select>
-
-                      {updatingId === taskId && (
-                        <p className="mt-1 text-xs text-ink-soft">Saving...</p>
-                      )}
+                      <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-600">
+                        Due: {formatDate(task.dueDate)}
+                      </span>
                     </div>
                   </div>
 
+                  <div className="w-full sm:w-44">
+                    <label
+                      htmlFor={`status-${taskId}`}
+                      className="mb-2 block text-xs font-semibold text-slate-500"
+                    >
+                      Task status
+                    </label>
+
+                    <select
+                      id={`status-${taskId}`}
+                      value={task.status}
+                      disabled={updatingId === taskId}
+                      onChange={(event) =>
+                        handleStatusChange(taskId, event.target.value)
+                      }
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-indigo-400 disabled:opacity-60"
+                    >
+                      {statusOptions.map((item) => (
+                        <option key={item} value={item}>
+                          {item === 'Todo' ? 'To Do' : item}
+                        </option>
+                      ))}
+                    </select>
+
+                    {updatingId === taskId && (
+                      <p className="mt-2 text-xs text-indigo-600">
+                        Saving status...
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-5 border-t border-slate-100 pt-4">
                   <button
                     type="button"
                     onClick={() => toggleComments(taskId)}
                     aria-expanded={commentsOpen}
-                    className="mt-3 text-sm font-semibold text-brand hover:text-brand-deep"
+                    className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-indigo-600 transition hover:bg-indigo-50"
                   >
-                    {commentsOpen ? 'Hide comments' : 'Comments'}
-                    {commentsLoaded && ` (${taskComments.length})`}
+                    <span aria-hidden="true">▤</span>
+                    {commentsOpen ? 'Hide comments' : 'View comments'}
+
+                    {Object.prototype.hasOwnProperty.call(
+                      commentsByTask,
+                      taskId
+                    ) && (
+                      <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs">
+                        {taskComments.length}
+                      </span>
+                    )}
                   </button>
 
                   {commentsOpen && (
-                    <div className="mt-3 rounded-md bg-canvas p-4">
+                    <div className="mt-4 rounded-xl bg-slate-50 p-4">
+                      <div className="mb-4 flex items-center justify-between gap-3">
+                        <h4 className="font-semibold text-slate-800">
+                          Task discussion
+                        </h4>
+
+                        <button
+                          type="button"
+                          onClick={() => loadComments(taskId)}
+                          disabled={commentsLoading}
+                          className="text-xs font-semibold text-indigo-600 hover:underline disabled:opacity-50"
+                        >
+                          Refresh
+                        </button>
+                      </div>
+
                       {commentsError && (
-                        <div className="mb-3">
-                          <Notice onRetry={() => loadComments(taskId)}>
-                            {commentsError}
-                          </Notice>
+                        <div
+                          role="alert"
+                          className="mb-3 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700"
+                        >
+                          {commentsError}
+                          <button
+                            type="button"
+                            onClick={() => loadComments(taskId)}
+                            className="ml-2 font-semibold underline"
+                          >
+                            Retry
+                          </button>
                         </div>
                       )}
 
                       {commentsLoading ? (
-                        <p className="text-sm text-ink-soft">Loading comments...</p>
+                        <p className="py-4 text-sm text-slate-500">
+                          Loading comments...
+                        </p>
                       ) : taskComments.length === 0 ? (
-                        <p className="text-sm text-ink-soft">
-                          No comments yet. Start the conversation below.
+                        <p className="py-4 text-sm text-slate-500">
+                          No comments yet. Start the conversation.
                         </p>
                       ) : (
-                        <ul className="max-h-80 space-y-4 overflow-y-auto">
+                        <div className="mb-5 max-h-80 space-y-3 overflow-y-auto">
                           {taskComments.map((comment) => (
-                            <li key={comment._id} className="flex gap-3">
-                              <Avatar name={comment.user?.name} />
-                              <div className="min-w-0">
-                                <p className="text-sm">
-                                  <span className="font-semibold">
-                                    {comment.user?.name || 'Team member'}
-                                  </span>
-                                  <time className="ml-2 text-xs text-ink-soft">
-                                    {formatDateTime(comment.createdAt)}
-                                  </time>
+                            <div
+                              key={comment._id}
+                              className="rounded-xl border border-slate-200 bg-white p-3"
+                            >
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <p className="text-sm font-semibold text-slate-800">
+                                  {comment.user?.name || 'Team member'}
                                 </p>
-                                <p className="mt-0.5 whitespace-pre-wrap break-words text-sm leading-6">
-                                  {comment.text}
-                                </p>
+
+                                <time className="text-xs text-slate-400">
+                                  {formatDateTime(comment.createdAt)}
+                                </time>
                               </div>
-                            </li>
+
+                              <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-600">
+                                {comment.text}
+                              </p>
+                            </div>
                           ))}
-                        </ul>
+                        </div>
                       )}
 
                       <form
-                        onSubmit={(event) => handleAddComment(event, taskId)}
-                        className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-end"
+                        onSubmit={(event) =>
+                          handleAddComment(event, taskId)
+                        }
+                        className="flex flex-col gap-3 sm:flex-row sm:items-end"
                       >
                         <label className="flex-1">
-                          <span className="sr-only">Add a comment</span>
+                          <span className="mb-2 block text-xs font-semibold text-slate-600">
+                            Add a comment
+                          </span>
                           <textarea
                             value={commentText}
-                            onChange={(event) => setCommentText(event.target.value)}
-                            placeholder="Write a comment"
+                            onChange={(event) =>
+                              setCommentText(event.target.value)
+                            }
+                            placeholder="Share an update or ask a question..."
                             rows={2}
-                            maxLength={1000}
+                            maxLength={2000}
                             required
-                            className={`${fieldClass} w-full resize-y`}
+                            className="w-full resize-y rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm outline-none focus:border-indigo-400"
                           />
                         </label>
 
                         <button
                           type="submit"
                           disabled={sendingComment || !commentText.trim()}
-                          className="rounded-md bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-deep disabled:opacity-50"
+                          className="rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                          {sendingComment ? 'Posting...' : 'Post comment'}
+                          {sendingComment ? 'Sending...' : 'Send comment'}
                         </button>
                       </form>
                     </div>
                   )}
-                </li>
-              )
-            })}
-          </ul>
-        )}
-      </Panel>
-    </div>
+                </div>
+              </article>
+            )
+          })}
+        </div>
+      )}
+    </section>
   )
 }
 
